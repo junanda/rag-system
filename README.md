@@ -285,7 +285,7 @@ CREATE TABLE documents (
 - Docker & Docker Compose
 - Node.js 18+ (for local frontend development)
 - Python 3.11+ (for local backend development)
-- OpenAI API key (or use local LLM)
+- OpenAI API key (or use free alternatives - see below)
 
 ### Quick Start
 
@@ -652,7 +652,7 @@ curl -X POST "http://localhost:8000/api/chat/query" \
 
 ### LLM API Costs
 **Problem**: OpenAI API is expensive
-**Solution**:
+**Solution**: Use free alternatives (see "Free LLM Options" section below)
 - Use caching for repeated queries
 - Use cheaper models (gpt-3.5-turbo)
 - Use local LLM (Ollama) for development
@@ -670,6 +670,183 @@ curl -X POST "http://localhost:8000/api/chat/query" \
 - Add CORS middleware in FastAPI
 - Allow origin: http://localhost:3000
 - Check network configuration in Docker
+
+---
+
+## Free LLM Options
+
+You don't need to pay for OpenAI API! Here are free alternatives:
+
+### Option 1: Ollama (Recommended for Development)
+
+**Completely free, runs locally on your machine**
+
+1. **Install Ollama**
+```bash
+# Mac
+brew install ollama
+
+# Linux
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Windows
+# Download from https://ollama.com/download
+```
+
+2. **Download a model**
+```bash
+# Llama 3.2 (3B - fast, good for development)
+ollama pull llama3.2
+
+# Or Llama 3.1 (8B - better quality)
+ollama pull llama3.1
+
+# Or Mistral (7B - good balance)
+ollama pull mistral
+```
+
+3. **Update your .env**
+```bash
+# Use Ollama instead of OpenAI
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
+```
+
+4. **Modify your code to use Ollama**
+```python
+# In backend/app/services/query_engine.py
+from langchain_community.llms import Ollama
+
+llm = Ollama(
+    base_url="http://localhost:11434",
+    model="llama3.2"
+)
+```
+
+**Pros**: Free, private, no API limits, works offline
+**Cons**: Requires decent hardware (8GB+ RAM), slower than cloud APIs
+
+---
+
+### Option 2: Google Gemini (Free Tier)
+
+**Free tier: 60 requests per minute**
+
+1. **Get free API key**
+   - Go to https://makersuite.google.com/app/apikey
+   - Click "Create API Key"
+   - Copy your key
+
+2. **Install package**
+```bash
+pip install langchain-google-genai
+```
+
+3. **Update .env**
+```bash
+GOOGLE_API_KEY=your-gemini-api-key
+LLM_PROVIDER=gemini
+```
+
+4. **Use in code**
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+llm = ChatGoogleGenerativeAI(
+    model="gemini-pro",
+    google_api_key=os.getenv("GOOGLE_API_KEY")
+)
+```
+
+**Pros**: Free, fast, good quality
+**Cons**: Rate limits, requires internet
+
+---
+
+### Option 3: Groq (Free Tier)
+
+**Free tier: Very fast inference, generous limits**
+
+1. **Get free API key**
+   - Go to https://console.groq.com
+   - Sign up and get API key
+
+2. **Install package**
+```bash
+pip install langchain-groq
+```
+
+3. **Update .env**
+```bash
+GROQ_API_KEY=your-groq-api-key
+LLM_PROVIDER=groq
+```
+
+4. **Use in code**
+```python
+from langchain_groq import ChatGroq
+
+llm = ChatGroq(
+    api_key=os.getenv("GROQ_API_KEY"),
+    model="mixtral-8x7b-32768"  # or "llama3-70b-8192"
+)
+```
+
+**Pros**: Free, extremely fast, good quality
+**Cons**: Rate limits, requires internet
+
+---
+
+### Option 4: Hugging Face (Free)
+
+**Free inference API**
+
+1. **Get free token**
+   - Go to https://huggingface.co/settings/tokens
+   - Create a token
+
+2. **Update .env**
+```bash
+HUGGINGFACE_API_TOKEN=your-hf-token
+LLM_PROVIDER=huggingface
+```
+
+3. **Use in code**
+```python
+from langchain_community.llms import HuggingFaceHub
+
+llm = HuggingFaceHub(
+    repo_id="mistralai/Mistral-7B-Instruct-v0.2",
+    huggingfacehub_api_token=os.getenv("HUGGINGFACE_API_TOKEN")
+)
+```
+
+**Pros**: Free, many models available
+**Cons**: Can be slow, rate limits
+
+---
+
+### Comparison Table
+
+| Provider | Cost | Speed | Quality | Setup Difficulty |
+|----------|------|-------|---------|------------------|
+| **Ollama** | Free | Medium | Good | Easy |
+| **Gemini** | Free | Fast | Very Good | Very Easy |
+| **Groq** | Free | Very Fast | Good | Very Easy |
+| **Hugging Face** | Free | Slow | Varies | Easy |
+| OpenAI | Paid | Fast | Excellent | Very Easy |
+
+### Recommended Setup for This Project
+
+**For Development/Testing:**
+- Use **Ollama** with `llama3.2` (free, no limits)
+
+**For Production/Demo:**
+- Use **Groq** or **Gemini** (free tier is generous)
+
+**If you have budget:**
+- Use **OpenAI GPT-4** (best quality)
 
 ---
 
