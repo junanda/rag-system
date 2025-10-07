@@ -155,19 +155,32 @@ class MetricsCalculator:
     
     def get_calculation_breakdown(self, fund_id: int, metric: str) -> Dict[str, Any]:
         """
-        Get detailed breakdown of a calculation
+        Get detailed breakdown of a calculation with cash flows for debugging
         
         Args:
             fund_id: Fund ID
             metric: Metric name (dpi, irr, pic)
             
         Returns:
-            Detailed breakdown with intermediate values
+            Detailed breakdown with intermediate values and transaction details
         """
         if metric == "dpi":
             pic = self.calculate_pic(fund_id)
             total_distributions = self.calculate_total_distributions(fund_id)
             dpi = self.calculate_dpi(fund_id)
+            
+            # Get detailed transactions for debugging
+            capital_calls = self.db.query(CapitalCall).filter(
+                CapitalCall.fund_id == fund_id
+            ).order_by(CapitalCall.call_date).all()
+            
+            distributions = self.db.query(Distribution).filter(
+                Distribution.fund_id == fund_id
+            ).order_by(Distribution.distribution_date).all()
+            
+            adjustments = self.db.query(Adjustment).filter(
+                Adjustment.fund_id == fund_id
+            ).order_by(Adjustment.adjustment_date).all()
             
             return {
                 "metric": "DPI",
@@ -175,7 +188,32 @@ class MetricsCalculator:
                 "pic": float(pic) if pic else 0,
                 "total_distributions": float(total_distributions) if total_distributions else 0,
                 "result": dpi,
-                "explanation": f"DPI = {total_distributions} / {pic} = {dpi}"
+                "explanation": f"DPI = {total_distributions} / {pic} = {dpi}",
+                "transactions": {
+                    "capital_calls": [
+                        {
+                            "date": str(call.call_date),
+                            "amount": float(call.amount),
+                            "description": call.description
+                        } for call in capital_calls
+                    ],
+                    "distributions": [
+                        {
+                            "date": str(dist.distribution_date),
+                            "amount": float(dist.amount),
+                            "is_recallable": dist.is_recallable,
+                            "description": dist.description
+                        } for dist in distributions
+                    ],
+                    "adjustments": [
+                        {
+                            "date": str(adj.adjustment_date),
+                            "amount": float(adj.amount),
+                            "type": adj.adjustment_type,
+                            "description": adj.description
+                        } for adj in adjustments
+                    ]
+                }
             }
         
         elif metric == "irr":
@@ -187,31 +225,53 @@ class MetricsCalculator:
                 "formula": "Internal Rate of Return (NPV = 0)",
                 "cash_flows": cash_flows,
                 "result": irr,
-                "explanation": f"IRR calculated from {len(cash_flows)} cash flows = {irr}%"
+                "explanation": f"IRR calculated from {len(cash_flows)} cash flows = {irr}%",
+                "cash_flow_summary": {
+                    "total_outflows": sum(cf['amount'] for cf in cash_flows if cf['amount'] < 0),
+                    "total_inflows": sum(cf['amount'] for cf in cash_flows if cf['amount'] > 0),
+                    "net_cash_flow": sum(cf['amount'] for cf in cash_flows)
+                }
             }
         
         elif metric == "pic":
-            total_calls = self.db.query(
-                func.sum(CapitalCall.amount)
-            ).filter(
+            # Get detailed capital calls
+            capital_calls = self.db.query(CapitalCall).filter(
                 CapitalCall.fund_id == fund_id
-            ).scalar() or Decimal(0)
+            ).order_by(CapitalCall.call_date).all()
             
-            total_adjustments = self.db.query(
-                func.sum(Adjustment.amount)
-            ).filter(
+            # Get detailed adjustments
+            adjustments = self.db.query(Adjustment).filter(
                 Adjustment.fund_id == fund_id
-            ).scalar() or Decimal(0)
+            ).order_by(Adjustment.adjustment_date).all()
             
+            total_calls = sum(float(call.amount) for call in capital_calls)
+            total_adjustments = sum(float(adj.amount) for adj in adjustments)
             pic = self.calculate_pic(fund_id)
             
             return {
                 "metric": "PIC",
                 "formula": "Total Capital Calls - Adjustments",
-                "total_calls": float(total_calls),
-                "total_adjustments": float(total_adjustments),
+                "total_calls": total_calls,
+                "total_adjustments": total_adjustments,
                 "result": float(pic) if pic else 0,
-                "explanation": f"PIC = {total_calls} - {total_adjustments} = {pic}"
+                "explanation": f"PIC = {total_calls} - {total_adjustments} = {pic}",
+                "transactions": {
+                    "capital_calls": [
+                        {
+                            "date": str(call.call_date),
+                            "amount": float(call.amount),
+                            "description": call.description
+                        } for call in capital_calls
+                    ],
+                    "adjustments": [
+                        {
+                            "date": str(adj.adjustment_date),
+                            "amount": float(adj.amount),
+                            "type": adj.adjustment_type,
+                            "description": adj.description
+                        } for adj in adjustments
+                    ]
+                }
             }
         
         return {"error": "Unknown metric"}

@@ -49,8 +49,14 @@ This repository contains a **project scaffold** to help you get started quickly:
 - **DPI (Distributions to Paid-In)** - Fully implemented
 - **IRR (Internal Rate of Return)** - Using numpy-financial
 - **PIC (Paid-In Capital)** - With adjustments
-- **Calculation breakdown API** - For debugging
+- **Calculation breakdown API** - Shows all cash flows and transactions for debugging
 - Located in: `backend/app/services/metrics_calculator.py`
+
+**Debugging Features:**
+- View all capital calls, distributions, and adjustments used in calculations
+- See cash flow timeline for IRR calculation
+- Verify intermediate values (total calls, total distributions, etc.)
+- Trace calculation steps with detailed explanations
 
 ### Sample Data (Provided)
 - **Reference PDF**: ILPA metrics explanation document
@@ -83,8 +89,10 @@ The following **core functionalities are NOT implemented** and need to be built 
 - [ ] Prompt engineering for accurate responses
 
 **Files to implement:**
-- `backend/app/services/vector_store.py` (skeleton provided)
+- `backend/app/services/vector_store.py` (pgvector implementation with TODOs)
 - `backend/app/services/rag_engine.py` (needs implementation)
+
+**Note**: This project uses **pgvector** instead of FAISS. pgvector is a PostgreSQL extension that stores vectors directly in your database, eliminating the need for a separate vector database.
 
 #### 3. Query Engine & Intent Classification (Phase 3-4) - **CRITICAL**
 - [ ] Intent classifier (calculation vs definition vs retrieval)
@@ -247,9 +255,9 @@ CREATE TABLE documents (
 - [ ] Parsing status tracking
 
 ### Phase 3: Vector Store & RAG
-- [ ] FAISS vector database setup
+- [ ] pgvector setup (PostgreSQL extension)
 - [ ] Embedding generation (OpenAI/local)
-- [ ] Similarity search implementation
+- [ ] Similarity search using pgvector operators
 - [ ] LangChain integration
 - [ ] Basic chat interface
 
@@ -619,7 +627,7 @@ curl -X POST "http://localhost:8000/api/chat/query" \
 ### Backend
 - **Framework**: FastAPI (Python 3.11+)
 - **Document Parser**: Docling
-- **Vector DB**: FAISS (or Pinecone)
+- **Vector DB**: pgvector (PostgreSQL extension)
 - **SQL DB**: PostgreSQL 15+
 - **ORM**: SQLAlchemy
 - **LLM Framework**: LangChain

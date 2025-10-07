@@ -7,6 +7,7 @@ python-multipart==0.0.6
 sqlalchemy==2.0.25
 psycopg2-binary==2.9.9
 alembic==1.13.1
+pgvector==0.2.4
 
 # Pydantic
 pydantic>=2.7.0
@@ -25,9 +26,8 @@ langchain-community==0.0.10
 openai==1.7.2
 anthropic==0.8.1
 
-# Vector Store
-faiss-cpu==1.7.4
-chromadb==0.4.22
+# Vector Store (using pgvector - PostgreSQL extension)
+# No additional packages needed - pgvector is a PostgreSQL extension
 
 # Embeddings
 sentence-transformers==2.2.2
