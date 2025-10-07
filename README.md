@@ -82,7 +82,7 @@ The following **core functionalities are NOT implemented** and need to be built 
 
 #### 2. Vector Store & RAG System (Phase 3) - **CRITICAL**
 - [ ] Text chunking strategy implementation
-- [ ] OpenAI embedding generation
+- [ ] embedding generation
 - [ ] FAISS index creation and management
 - [ ] Semantic search implementation
 - [ ] Context retrieval for LLM
@@ -97,7 +97,7 @@ The following **core functionalities are NOT implemented** and need to be built 
 #### 3. Query Engine & Intent Classification (Phase 3-4) - **CRITICAL**
 - [ ] Intent classifier (calculation vs definition vs retrieval)
 - [ ] Query router logic
-- [ ] LLM integration (OpenAI GPT-4)
+- [ ] LLM integration 
 - [ ] Response formatting
 - [ ] Source citation
 - [ ] Conversation context management
@@ -631,7 +631,7 @@ curl -X POST "http://localhost:8000/api/chat/query" \
 - **SQL DB**: PostgreSQL 15+
 - **ORM**: SQLAlchemy
 - **LLM Framework**: LangChain
-- **LLM**: OpenAI GPT-4 or Claude
+- **LLM**: OpenAI GPT-4 or any LLM
 - **Embeddings**: OpenAI text-embedding-3-small
 - **Task Queue**: Celery + Redis
 
