@@ -18,7 +18,7 @@ class CapitalCallBase(BaseModel):
 
 class CapitalCallCreate(CapitalCallBase):
     """Capital call creation schema"""
-    pass
+    fund_id: int
 
 
 class CapitalCall(CapitalCallBase):
@@ -42,7 +42,7 @@ class DistributionBase(BaseModel):
 
 class DistributionCreate(DistributionBase):
     """Distribution creation schema"""
-    pass
+    fund_id: int
 
 
 class Distribution(DistributionBase):
@@ -67,7 +67,7 @@ class AdjustmentBase(BaseModel):
 
 class AdjustmentCreate(AdjustmentBase):
     """Adjustment creation schema"""
-    pass
+    fund_id: int
 
 
 class Adjustment(AdjustmentBase):
