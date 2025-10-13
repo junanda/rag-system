@@ -8,8 +8,7 @@ TODO: Implement the document processing pipeline
 - Handle errors and edge cases
 """
 from typing import Dict, List, Any
-# from langchain_experimental.text_splitter import SemanticChunker
-# from langchain_huggingface.embeddings import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 from docling.document_converter import DocumentConverter
 from sklearn.metrics.pairwise import cosine_similarity
@@ -26,8 +25,6 @@ from app.repository.adjustment_repository import AdjustmentRepository
 import pdfplumber
 import logging
 import re
-import numpy as np
-import spacy
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,17 +35,17 @@ class DocumentProcessor:
     def __init__(self):
         self.table_parser = TableParser()
         self.vector_store = VectorStore()
-        self.embedding_model = SentenceTransformer()
         self.markdown_cleaner = MarkdownCleaner()
         self.converter = DocumentConverter()
         self.table_converter = TableToParagraphConverter()
         self.table_replacer = MarkdownTableReplacer()
-        self.chunk_size = settings.CHUNK_SIZE
-        self.chunk_overlap = settings.CHUNK_OVERLAP
         self.doc_repo = DocumentRepository()
         self.capitalcall_repo = CapitalCallRepository()
         self.distribution_repo = DistributionRepository()
         self.adjustment_repo = AdjustmentRepository()
+        self.similarity_threshold = settings.SIMILARITY_THRESHOLD
+        self.chunk_size = settings.CHUNK_SIZE
+        self.chunk_overlap = settings.CHUNK_OVERLAP
         self.stats = {
             "pages_processed": 0,
             "tables_extracted": 0,
@@ -58,17 +55,7 @@ class DocumentProcessor:
         self._initiliaze_embeddings()
     
     def _initiliaze_embeddings(self):
-        # self.embedding_model = HuggingFaceEmbeddings(
-        #     model_name=settings.EMBEDDING_MODEL,
-        #     model_kwargs={
-        #         "device": "cpu"
-        #     },
-        #     encode_kwargs={
-        #         "normalize_embeddings": True
-        #     }
-        # )
         self.model = SentenceTransformer(settings.EMBEDDING_MODEL)
-        self.NLP = spacy.load("en_core_web_sm")
     
     async def process_document(self, file_path: str, document_id: int, fund_id: int) -> Dict[str, Any]:
         """
@@ -112,14 +99,12 @@ class DocumentProcessor:
             chunk_inputs = [{"text": clean_text, "source": file_path, "document_id": document_id, "fund_id": fund_id}]
     
             chunks = self._chunk_text(chunk_inputs)
+            print(chunks)
 
             # 4. Embed and store each chunk
             for content in chunks:
                 await self.vector_store.add_document(content.get('text'), content.get('metadata'))
                 self.stats["chunks_embedded_and_stored"] += 1
-            
-            # update status doc to finish
-            # self.doc_repo.update_status(document_id, "completed")
             
             # 5. Ekstrak metadata kunci
             performance = self._extract_performance(full_text)
@@ -142,8 +127,6 @@ class DocumentProcessor:
                 "statistics": self.stats,
                 "status": "failed"
             }
-        # finally:
-        #     self.vector_store.close()
     
     def _chunk_text(self, text_content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -164,83 +147,61 @@ class DocumentProcessor:
         logger.info("Menggunakan model embedding gratis: all-MiniLM-L6-v2...")
 
         all_chunks = []
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            length_function=len,
+            is_separator_regex=False,
+        )
+
         for item in text_content:
             raw_text = item.get("text", "").strip()
+            
             if not raw_text:
+                continue
+            
+            rule_chunks = splitter.split_text(raw_text)
+            if not rule_chunks:
                 continue
 
             # source = item.get("source", "unknown")
             base_metadata = {k: v for k, v in item.items() if k != "text"}
+
+            embeddings = self.model.encode(rule_chunks)
             
-            # Extract sentences using spaCy and convert to strings
-            doc = self.NLP(raw_text)
-            sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+            current_chunk = rule_chunks[0]
+            current_embedding = embeddings[0]
+            merged_chunk = []
 
-            if not sentences:
-                continue
-
-            # Encode sentences as embeddings
-            embeddings = self.model.encode(sentences, convert_to_tensor=False)
-
-            distance = []
-            for i in range(len(embeddings)-1):
-                sim = cosine_similarity(embeddings[i].reshape(1, -1), embeddings[i+1].reshape(1, -1))[0][0]
-                distance.append(1 - sim)
-
-            threshold = np.mean(distance) + np.std(distance) * 0.5
-            logging.info(f"Ambang batas jarak Kosinus (Distance Treshold): {threshold:.4f}")
-
-            current_chunk = []
-            current_len = 0
-            chunk_index = 0
-
-            for i, sent in enumerate(sentences):
-                sent_len = len(sent)
-
-                if current_len + sent_len > self.chunk_size and current_chunk:
-                    # Finalize current chunk
-                    chunk_text = " ".join(current_chunk).strip()
-                    all_chunks.append({
-                        "text": chunk_text,
+            for index in range(1, len(rule_chunks)):
+                sim = cosine_similarity([embeddings[index - 1]], [embeddings[index]])[0][0]
+                if sim < self.similarity_threshold:
+                    current_chunk += " " + rule_chunks[index]
+                    current_embedding = (current_embedding + embeddings[index])/2
+                else:
+                    merged_chunk.append({
+                        "text": current_chunk.strip(),
                         "embedding": None,
                         "metadata": {
                             **base_metadata,
-                            "chunk_index": chunk_index,
-                            "char_start": sum(len(s) + 1 for s in sentences[:i - len(current_chunk)]),
-                            "char_end": sum(len(s) + 1 for s in sentences[:i]),
+                            "chunk_index": len(merged_chunk),
+                            "sima": float(sim),
                         }
                     })
-                    chunk_index += 1
-
-                    # Apply overlap: keep trailing sentences within overlap limit
-                    overlap_chars = 0
-                    overlap_sentences = []
-                    for s in reversed(current_chunk):
-                        if overlap_chars + len(s) <= self.chunk_overlap:
-                            overlap_sentences.insert(0, s)
-                            overlap_chars += len(s) + 1
-                        else:
-                            break
-
-                    current_chunk = overlap_sentences
-                    current_len = overlap_chars
-
-                current_chunk.append(sent)
-                current_len += sent_len + 1  # +1 for space
+                    current_chunk = rule_chunks[index]
+                    current_embedding = embeddings[index]
             
-            # Final chunk
-            if current_chunk:
-                chunk_text = " ".join(current_chunk)
-                all_chunks.append({
-                    "text": chunk_text,
-                    "embedding": None,
-                    "metadata": {
-                        **base_metadata,
-                        "chunk_index": chunk_index,
-                        "char_start": sum(len(s) + 1 for s in sentences[:-len(current_chunk)]),
-                        "char_end": sum(len(s) + 1 for s in sentences),
-                    }
-                })
+            merged_chunk.append({
+                "text": current_chunk.strip(),
+                        "embedding": None,
+                        "metadata": {
+                            **base_metadata,
+                            "chunk_index": len(merged_chunk),
+                            "sima": float(sim),
+                        }
+            })
+
+            all_chunks.extend(merged_chunk)
 
         return all_chunks
 
