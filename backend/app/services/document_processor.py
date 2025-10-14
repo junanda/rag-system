@@ -99,7 +99,6 @@ class DocumentProcessor:
             chunk_inputs = [{"text": clean_text, "source": file_path, "document_id": document_id, "fund_id": fund_id}]
     
             chunks = self._chunk_text(chunk_inputs)
-            print(chunks)
 
             # 4. Embed and store each chunk
             for content in chunks:
