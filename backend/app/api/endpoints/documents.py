@@ -14,7 +14,7 @@ from app.schemas.document import (
     DocumentUploadResponse,
     DocumentStatus
 )
-from app.services.document_processor import DocumentProcessor
+from app.tasks.document_task import task_document_process
 from app.core.config import settings
 
 router = APIRouter()
@@ -65,52 +65,15 @@ async def upload_document(
     db.add(document)
     db.commit()
     db.refresh(document)
-    
-    # Start background processing
-    background_tasks.add_task(
-        process_document_task,
-        document.id,
-        file_path,
-        fund_id or 1  # Default fund_id if not provided
-    )
+
+    task = task_document_process.delay(document.id, file_path, fund_id or 1)
     
     return DocumentUploadResponse(
         document_id=document.id,
-        task_id=None,
+        task_id=task.id,
         status="pending",
         message="Document uploaded successfully. Processing started."
     )
-
-
-async def process_document_task(document_id: int, file_path: str, fund_id: int):
-    """Background task to process document"""
-    from app.db.session import SessionLocal
-    
-    db = SessionLocal()
-    
-    try:
-        # Update status to processing
-        document = db.query(Document).filter(Document.id == document_id).first()
-        document.parsing_status = "processing"
-        db.commit()
-        
-        # Process document
-        processor = DocumentProcessor()
-        result = await processor.process_document(file_path, document_id, fund_id)
-        
-        # Update status
-        document.parsing_status = result["status"]
-        if result["status"] == "failed":
-            document.error_message = result.get("error")
-        db.commit()
-        
-    except Exception as e:
-        document = db.query(Document).filter(Document.id == document_id).first()
-        document.parsing_status = "failed"
-        document.error_message = str(e)
-        db.commit()
-    finally:
-        db.close()
 
 
 @router.get("/{document_id}/status", response_model=DocumentStatus)
