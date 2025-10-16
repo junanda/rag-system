@@ -8,7 +8,11 @@ import numpy_financial as npf
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.transaction import CapitalCall, Distribution, Adjustment
+from fastapi import Depends
+from app.db.session import get_db
 
+def get_metrics_calculator_service(db: Session = Depends(get_db)):
+    return MetricsCalculator(db)
 
 class MetricsCalculator:
     """Calculate fund performance metrics"""

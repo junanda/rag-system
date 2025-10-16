@@ -1,9 +1,10 @@
 """
 Chat Pydantic schemas
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from uuid import UUID
 
 
 class ChatMessage(BaseModel):
@@ -11,6 +12,16 @@ class ChatMessage(BaseModel):
     role: str  # 'user' or 'assistant'
     content: str
     timestamp: Optional[datetime] = None
+
+class MessageCreate(ChatMessage):
+    conversation_id: Optional[str] = None
+
+class MessageResponse(ChatMessage):
+    id: UUID
+    conversation_id: UUID
+    timestamp: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChatQueryRequest(BaseModel):
@@ -42,8 +53,8 @@ class ConversationCreate(BaseModel):
 
 class Conversation(BaseModel):
     """Conversation schema"""
-    conversation_id: str
+    conversation_id: UUID
     fund_id: Optional[int] = None
-    messages: List[ChatMessage] = []
+    messages: List[MessageResponse] = []
     created_at: datetime
     updated_at: datetime

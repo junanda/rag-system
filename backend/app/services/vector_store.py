@@ -9,13 +9,18 @@ TODO: Implement vector storage using pgvector
 """
 from typing import List, Dict, Any, Optional
 import numpy as np
+import json
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from app.core.config import settings
 from app.db.session import SessionLocal
+from app.db.session import get_db
+from fastapi import Depends
 
+def get_vector_store_service(db: Session = Depends(get_db)):
+    return VectorStore(db)
 
 class VectorStore:
     """pgvector-based vector store for document embeddings"""
@@ -35,7 +40,7 @@ class VectorStore:
         else:
             # Fallback to local embeddings
             return HuggingFaceEmbeddings(
-                model_name="sentence-transformers/all-MiniLM-L6-v2"
+                model_name=settings.EMBEDDING_MODEL
             )
     
     def _ensure_extension(self):
@@ -90,18 +95,23 @@ class VectorStore:
             embedding = await self._get_embedding(content)
             embedding_list = embedding.tolist()
             
+            # Format embedding as PostgreSQL array string: '[1,2,3,...]'
+            embedding_str = '[' + ','.join(str(x) for x in embedding_list) + ']'
+            
+            metadata_json = json.dumps(metadata)
+            
             # Insert into database
             insert_sql = text("""
                 INSERT INTO document_embeddings (document_id, fund_id, content, embedding, metadata)
-                VALUES (:document_id, :fund_id, :content, :embedding::vector, :metadata::jsonb)
+                VALUES (:document_id, :fund_id, :content, CAST(:embedding AS vector), CAST(:metadata AS jsonb))
             """)
             
             self.db.execute(insert_sql, {
                 "document_id": metadata.get("document_id"),
                 "fund_id": metadata.get("fund_id"),
                 "content": content,
-                "embedding": str(embedding_list),
-                "metadata": str(metadata)
+                "embedding": embedding_str,
+                "metadata": metadata_json
             })
             self.db.commit()
         except Exception as e:
@@ -155,15 +165,15 @@ class VectorStore:
                     fund_id,
                     content,
                     metadata,
-                    1 - (embedding <=> :query_embedding::vector) as similarity_score
+                    1 - (embedding <=> CAST(:query_embedding AS vector)) as similarity_score
                 FROM document_embeddings
                 {where_clause}
-                ORDER BY embedding <=> :query_embedding::vector
+                ORDER BY embedding <=> CAST(:query_embedding AS vector)
                 LIMIT :k
             """)
             
             result = self.db.execute(search_sql, {
-                "query_embedding": str(embedding_list),
+                "query_embedding": '[' + ','.join(str(x) for x in embedding_list) + ']',
                 "k": k
             })
             
