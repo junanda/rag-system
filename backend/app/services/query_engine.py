@@ -1,37 +1,32 @@
 """
 Query engine service for RAG-based question answering
 """
+from fastapi import Depends
 from typing import Dict, Any, List, Optional
 import time
-from langchain_openai import ChatOpenAI
-from langchain_community.llms import Ollama
-from langchain.prompts import ChatPromptTemplate
 from app.core.config import settings
-from app.services.vector_store import VectorStore
-from app.services.metrics_calculator import MetricsCalculator
+from app.services.vector_store import VectorStore, get_vector_store_service
+from app.services.metrics_calculator import MetricsCalculator, get_metrics_calculator_service
 from sqlalchemy.orm import Session
+from app.db.session import get_db
+from app.services.rag_service import RAGService, get_rag_service
 
+def get_query_engine_service(
+    db: Session = Depends(get_db), 
+    rag_service: RAGService = Depends(get_rag_service),
+    vector_store: VectorStore = Depends(get_vector_store_service),
+    metrics_calculator: MetricsCalculator = Depends(get_metrics_calculator_service)
+    ):
+    return QueryEngine(db, rag_service, vector_store, metrics_calculator)
 
 class QueryEngine:
     """RAG-based query engine for fund analysis"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, rag_service: RAGService, vector_store: VectorStore, metrics_calculator: MetricsCalculator):
         self.db = db
-        self.vector_store = VectorStore()
-        self.metrics_calculator = MetricsCalculator(db)
-        self.llm = self._initialize_llm()
-    
-    def _initialize_llm(self):
-        """Initialize LLM"""
-        if settings.OPENAI_API_KEY:
-            return ChatOpenAI(
-                model=settings.OPENAI_MODEL,
-                temperature=0,
-                openai_api_key=settings.OPENAI_API_KEY
-            )
-        else:
-            # Fallback to local LLM
-            return Ollama(model="llama2")
+        self.rag_service = rag_service
+        self.vector_store = vector_store
+        self.metrics_calculator = metrics_calculator
     
     async def process_query(
         self, 
@@ -55,31 +50,24 @@ class QueryEngine:
         # Step 1: Classify query intent
         intent = await self._classify_intent(query)
         
-        # Step 2: Retrieve relevant context from vector store
-        filter_metadata = {"fund_id": fund_id} if fund_id else None
-        relevant_docs = await self.vector_store.similarity_search(
-            query=query,
-            k=settings.TOP_K_RESULTS,
-            filter_metadata=filter_metadata
-        )
-        
-        # Step 3: Calculate metrics if needed
+        # Step 2: Calculate metrics if needed
         metrics = None
         if intent == "calculation" and fund_id:
             metrics = self.metrics_calculator.calculate_all_metrics(fund_id)
-        
-        # Step 4: Generate response using LLM
-        answer = await self._generate_response(
+
+        # Step 3: Run RAG
+        rag_result = await self.rag_service.run(
             query=query,
-            context=relevant_docs,
-            metrics=metrics,
-            conversation_history=conversation_history or []
+            fund_id=fund_id,
+            conversation_history=conversation_history or [],
+            top_k_retrieve=settings.TOP_K_RESULTS,
+            metrics=metrics
         )
         
         processing_time = time.time() - start_time
         
         return {
-            "answer": answer,
+            "answer": rag_result["answer"],
             "sources": [
                 {
                     "content": doc["content"],
@@ -89,7 +77,7 @@ class QueryEngine:
                     },
                     "score": doc.get("score")
                 }
-                for doc in relevant_docs
+                for doc in rag_result["reranked_docs"]
             ],
             "metrics": metrics,
             "processing_time": round(processing_time, 2)
@@ -129,79 +117,3 @@ class QueryEngine:
             return "retrieval"
         
         return "general"
-    
-    async def _generate_response(
-        self,
-        query: str,
-        context: List[Dict[str, Any]],
-        metrics: Optional[Dict[str, Any]],
-        conversation_history: List[Dict[str, str]]
-    ) -> str:
-        """Generate response using LLM"""
-        
-        # Build context string
-        context_str = "\n\n".join([
-            f"[Source {i+1}]\n{doc['content']}"
-            for i, doc in enumerate(context[:3])  # Use top 3 sources
-        ])
-        
-        # Build metrics string
-        metrics_str = ""
-        if metrics:
-            metrics_str = "\n\nAvailable Metrics:\n"
-            for key, value in metrics.items():
-                if value is not None:
-                    metrics_str += f"- {key.upper()}: {value}\n"
-        
-        # Build conversation history string
-        history_str = ""
-        if conversation_history:
-            history_str = "\n\nPrevious Conversation:\n"
-            for msg in conversation_history[-3:]:  # Last 3 messages
-                history_str += f"{msg['role']}: {msg['content']}\n"
-        
-        # Create prompt
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a financial analyst assistant specializing in private equity fund performance.
-
-Your role:
-- Answer questions about fund performance using provided context
-- Calculate metrics like DPI, IRR when asked
-- Explain complex financial terms in simple language
-- Always cite your sources from the provided documents
-
-When calculating:
-- Use the provided metrics data
-- Show your work step-by-step
-- Explain any assumptions made
-
-Format your responses:
-- Be concise but thorough
-- Use bullet points for lists
-- Bold important numbers using **number**
-- Provide context for metrics"""),
-            ("user", """Context from documents:
-{context}
-{metrics}
-{history}
-
-Question: {query}
-
-Please provide a helpful answer based on the context and metrics provided.""")
-        ])
-        
-        # Generate response
-        messages = prompt.format_messages(
-            context=context_str,
-            metrics=metrics_str,
-            history=history_str,
-            query=query
-        )
-        
-        try:
-            response = self.llm.invoke(messages)
-            if hasattr(response, 'content'):
-                return response.content
-            return str(response)
-        except Exception as e:
-            return f"I apologize, but I encountered an error generating a response: {str(e)}"
