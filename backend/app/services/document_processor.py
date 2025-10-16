@@ -91,10 +91,10 @@ class DocumentProcessor:
             self.distribution_repo.create_bulk(fund_id, all_tables.get("distributions"))
             self.adjustment_repo.create_bulk(fund_id, all_tables.get("adjustments"))
 
-            table_paragraphs = self.table_converter.convert_tables_to_paragraphs(all_tables)
+            # table_paragraphs = self.table_converter.convert_tables_to_paragraphs(all_tables)
             
             clean_text = self.markdown_cleaner.clean_markdown_text(full_text)
-            clean_text = self.table_replacer.replace_tables_with_paragraphs(clean_text, table_paragraphs)
+            # clean_text = self.table_replacer.replace_tables_with_paragraphs(clean_text, table_paragraphs)
             
             chunk_inputs = [{"text": clean_text, "source": file_path, "document_id": document_id, "fund_id": fund_id}]
     
@@ -184,7 +184,7 @@ class DocumentProcessor:
                         "metadata": {
                             **base_metadata,
                             "chunk_index": len(merged_chunk),
-                            "sima": float(sim),
+                            "sim": float(sim),
                         }
                     })
                     current_chunk = rule_chunks[index]
@@ -196,7 +196,7 @@ class DocumentProcessor:
                         "metadata": {
                             **base_metadata,
                             "chunk_index": len(merged_chunk),
-                            "sima": float(sim),
+                            "sim": float(sim),
                         }
             })
 
