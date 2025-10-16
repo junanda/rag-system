@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: pgvector/pgvector:pg15
-    container_name: fund-postgres
+    container_name: pgvectordb
     environment:
       POSTGRES_USER: funduser
       POSTGRES_PASSWORD: fundpass
@@ -14,10 +14,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init_pgvector.sql:/docker-entrypoint-initdb.d/init_pgvector.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U funduser"]
+      test: ["CMD-SHELL", "pg_isready -U funduser -d funddb"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - fundnet
 
   redis:
     image: redis:7-alpine
@@ -31,21 +33,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - fundnet
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: service-fund:0.1.1
     container_name: fund-backend
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://funduser:fundpass@postgres:5432/funddb
-      - REDIS_URL=redis://redis:6379/0
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4-turbo-preview}
-      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
-      - UPLOAD_DIR=/app/uploads
+    env_file:
+      - ./backend/.env
     volumes:
       - ./backend:/app
       - backend_uploads:/app/uploads
@@ -59,11 +56,28 @@ services:
         python app/db/init_db.py &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "
+    networks:
+      - fundnet
+  
+  celery:
+    image: service-fund:0.1.1
+    container_name: fund-celery-worker
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    networks:
+      - fundnet
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: fpa-system-frontend:latest
     container_name: fund-frontend
     ports:
       - "3000:3000"
@@ -76,8 +90,13 @@ services:
     depends_on:
       - backend
     command: npm run dev
+    networks:
+      - fundnet
 
 volumes:
   postgres_data:
   redis_data:
   backend_uploads:
+networks:
+  fundnet:
+    driver: bridge
