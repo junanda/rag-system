@@ -5,10 +5,7 @@ performance PDF reports, automatically extract structured data, and ask natural-
 about fund metrics (DPI, IRR, PIC, etc.) — answered through a combination of **RAG (Retrieval
 Augmented Generation)** and **SQL-based metric calculations**.
 
-> **Project background**
-> This project started from an InterOpera take-home assignment and has since been continued and
-> extended as a **personal project** for learning and experimentation. The original assignment
-> brief is no longer reflected here — this README documents the project as it stands now.
+> A personal project exploring document intelligence and RAG over private-equity fund reports.
 
 ---
 
@@ -499,9 +496,8 @@ errors, port conflicts, database connection, lint warnings, and verifying the se
 
 ---
 
-## 📄 License & Attribution
+## 📄 License
 
-This is a personal project, originally bootstrapped from an InterOpera take-home assignment and
-since developed independently for learning purposes.
+This is a personal project developed for learning and experimentation.
 </content>
 </invoke>
