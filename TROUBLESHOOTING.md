@@ -1,26 +1,26 @@
-# 문제 해결 가이드
+# Troubleshooting Guide
 
-## 프론트엔드 TypeScript 에러
+## Frontend TypeScript Errors
 
-### 증상
+### Symptom
 ```
 Cannot find module 'react' or its corresponding type declarations.
 Cannot find module 'axios' or its corresponding type declarations.
 Cannot find module '@tanstack/react-query' or its corresponding type declarations.
 ```
 
-### 원인
-`node_modules`가 설치되지 않았거나 의존성이 누락되었습니다.
+### Cause
+`node_modules` is not installed, or dependencies are missing.
 
-### 해결방법
+### Solution
 
-#### Docker 사용 시 (권장)
+#### Using Docker (recommended)
 ```bash
-# Docker 컨테이너가 자동으로 의존성을 설치합니다
+# The Docker container installs dependencies automatically
 docker-compose up --build
 ```
 
-#### 로컬 개발 시
+#### Local development
 ```bash
 cd frontend
 npm install
@@ -29,22 +29,22 @@ npm run dev
 
 ---
 
-## 백엔드 Python 에러
+## Backend Python Errors
 
-### 증상
+### Symptom
 ```
 ModuleNotFoundError: No module named 'numpy'
 ModuleNotFoundError: No module named 'docling'
 ```
 
-### 해결방법
+### Solution
 
-#### Docker 사용 시 (권장)
+#### Using Docker (recommended)
 ```bash
 docker-compose up --build
 ```
 
-#### 로컬 개발 시
+#### Local development
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -53,78 +53,78 @@ uvicorn app.main:app --reload
 
 ---
 
-## 일반적인 에러 해결
+## Common Errors
 
 ### 1. "Cannot connect to database"
 
-**원인**: PostgreSQL이 실행되지 않았거나 연결 정보가 잘못되었습니다.
+**Cause**: PostgreSQL is not running, or the connection settings are incorrect.
 
-**해결**:
+**Solution**:
 ```bash
-# Docker로 PostgreSQL 시작
+# Start PostgreSQL with Docker
 docker-compose up postgres -d
 
-# 연결 확인
+# Verify the connection
 docker-compose exec postgres psql -U funduser -d funddb
 ```
 
 ### 2. "OpenAI API key not found"
 
-**원인**: `.env` 파일에 API 키가 설정되지 않았습니다.
+**Cause**: The API key is not set in the `.env` file.
 
-**해결**:
+**Solution**:
 ```bash
-# .env 파일 생성
+# Create the .env file
 cp .env.example .env
 
-# .env 파일 편집하여 API 키 추가
+# Edit .env and add your API key
 OPENAI_API_KEY=sk-your-actual-api-key-here
 ```
 
 ### 3. "Port already in use"
 
-**원인**: 포트가 이미 사용 중입니다.
+**Cause**: The port is already in use by another process.
 
-**해결**:
+**Solution**:
 ```bash
-# 사용 중인 프로세스 확인 (Mac/Linux)
-lsof -i :8000  # 백엔드
-lsof -i :3000  # 프론트엔드
+# Find the process using the port (Mac/Linux)
+lsof -i :8000  # backend
+lsof -i :3000  # frontend
 
-# 프로세스 종료
+# Kill the process
 kill -9 <PID>
 
-# 또는 Docker 컨테이너 재시작
+# Or restart the Docker containers
 docker-compose down
 docker-compose up
 ```
 
-### 4. Lint 경고는 무시해도 됩니다
+### 4. Lint warnings can be ignored
 
-프로젝트는 정상적으로 실행됩니다. Lint 경고는 다음과 같은 이유로 발생합니다:
+The project runs correctly even with lint warnings. They typically occur because:
 
-- **Frontend**: `npm install` 전에 TypeScript가 모듈을 찾을 수 없음
-- **Backend**: `# noqa` 주석으로 의도적으로 무시된 import (SQLAlchemy 모델 등록용)
+- **Frontend**: TypeScript can't resolve modules before `npm install` is run.
+- **Backend**: Imports intentionally ignored with `# noqa` comments (e.g. SQLAlchemy model registration).
 
 ---
 
-## 실행 확인
+## Verifying the Setup
 
-### 모든 서비스가 정상 실행되었는지 확인
+### Check that all services are running
 
 ```bash
-# 서비스 상태 확인
+# Service status
 docker-compose ps
 
-# 로그 확인
+# View logs
 docker-compose logs -f
 
-# 헬스 체크
+# Health checks
 curl http://localhost:8000/health
 curl http://localhost:3000
 ```
 
-### 정상 출력 예시
+### Example of healthy output
 ```
 NAME                COMMAND                  SERVICE             STATUS
 fund-backend        "sh -c 'python app/d…"   backend             Up
@@ -135,25 +135,26 @@ fund-redis          "docker-entrypoint.s…"   redis               Up (healthy)
 
 ---
 
-## 추가 도움말
+## Further Help
 
-문제가 계속되면:
+If the problem persists:
 
-1. **로그 확인**: `docker-compose logs [service-name]`
-2. **컨테이너 재시작**: `docker-compose restart [service-name]`
-3. **완전 재시작**: `docker-compose down && docker-compose up --build`
-4. **볼륨 삭제** (데이터 손실 주의): `docker-compose down -v`
+1. **Check logs**: `docker-compose logs [service-name]`
+2. **Restart a container**: `docker-compose restart [service-name]`
+3. **Full rebuild**: `docker-compose down && docker-compose up --build`
+4. **Remove volumes** (warning: data loss): `docker-compose down -v`
 
 ---
 
-## 정상 작동 확인
+## Confirming It Works
 
-프로젝트가 정상적으로 실행되면:
+When the project runs correctly:
 
-✅ Frontend: http://localhost:3000 접속 가능  
-✅ Backend API: http://localhost:8000/docs 접속 가능  
-✅ Health Check: `curl http://localhost:8000/health` 응답 정상  
-✅ Database: PostgreSQL 연결 가능  
-✅ Redis: Redis 연결 가능  
+✅ Frontend: http://localhost:3000 is reachable
+✅ Backend API: http://localhost:8000/docs is reachable
+✅ Health check: `curl http://localhost:8000/health` responds OK
+✅ Database: PostgreSQL connection works
+✅ Redis: Redis connection works
 
-모든 서비스가 정상이면 문서 업로드 및 채팅 기능을 테스트할 수 있습니다.
+Once all services are healthy, you can test the document upload and chat features.
+</content>

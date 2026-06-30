@@ -484,6 +484,9 @@ adjustments, and a performance summary.
 - Use a local LLM (Ollama) for development
 - Use cheaper models and cache repeated queries
 
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for a more detailed guide (TypeScript/Python module
+errors, port conflicts, database connection, lint warnings, and verifying the setup).
+
 ---
 
 ## 📚 Reference Materials

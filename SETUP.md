@@ -1,6 +1,8 @@
 # Setup Guide
 
-Complete setup instructions for the Fund Performance Analysis System.
+Complete setup instructions for the **Fund Performance Analysis (FP&A) System** — a personal
+project for AI-powered fund report analysis (RAG + SQL metrics). See the [README](README.md) for
+an overview.
 
 ## Prerequisites
 
@@ -25,7 +27,7 @@ Optional (for local development without Docker):
 
 ```bash
 git clone <repository-url>
-cd coding-test-3rd
+cd fpa-system
 ```
 
 ### 2. Set Up Environment Variables
@@ -270,7 +272,7 @@ SELECT * FROM distributions LIMIT 10;
 docker-compose down
 
 # Remove database volume
-docker volume rm coding-test-3rd_postgres_data
+docker volume rm fpa-system_postgres_data
 
 # Restart
 docker-compose up -d
@@ -488,11 +490,11 @@ docker-compose down
 docker-compose down -v
 
 # Remove images
-docker rmi coding-test-3rd_backend coding-test-3rd_frontend
+docker rmi fpa-system-backend fpa-system-frontend
 
 # Remove project directory
 cd ..
-rm -rf coding-test-3rd
+rm -rf fpa-system
 ```
 
 ---
